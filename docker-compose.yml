@@ -1,0 +1,23 @@
+services:
+  map:
+    image: map-panel:latest
+    build: .
+    container_name: map-panel
+    ports:
+      - "5000:5000"
+    volumes:
+      # Persistent data: auth credentials, schedules, backups, log
+      - map-data:/data
+      # Docker socket so MAP can manage Minecraft containers on the host
+      - /var/run/docker.sock:/var/run/docker.sock
+    # Required on SELinux systems (Fedora/RHEL) so the container process
+    # can connect to the Docker socket without an AVC denial
+    security_opt:
+      - label:disable
+    environment:
+      APP_ENV: production
+      MAP_DATA_DIR: /data
+    restart: unless-stopped
+
+volumes:
+  map-data:

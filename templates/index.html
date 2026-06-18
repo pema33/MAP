@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MAP — Minecraft Admin Panel</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/css/style.css">
+  <link rel="icon" type="image/x-icon" href="/static/img/favicon.ico">
+</head>
+<body>
+
+<!-- Sidebar -->
+<aside class="sidebar">
+  <div class="sidebar-logo">
+    <span class="logo-icon">⛏</span>
+    <span class="logo-text">MAP</span>
+  </div>
+  <nav class="sidebar-nav">
+    <a href="#" class="nav-item active" data-view="dashboard">
+      <span class="nav-icon">▦</span> Dashboard
+    </a>
+    <a href="#" class="nav-item" data-view="servers">
+      <span class="nav-icon">◈</span> Servers
+    </a>
+    <a href="#" class="nav-item" data-view="backups">
+      <span class="nav-icon">◎</span> Backups
+    </a>
+  </nav>
+  <div class="sidebar-footer">
+    <div class="system-badge" id="systemBadge">
+      <span class="dot dot--green"></span>
+      <span>Docker connected</span>
+    </div>
+    <div class="sidebar-auth">
+      <button class="btn btn--ghost btn--sm" id="changePasswordBtn">Change Password</button>
+      <button class="btn btn--ghost btn--sm" id="logoutBtn">Sign Out</button>
+    </div>
+  </div>
+</aside>
+
+<!-- Main content -->
+<main class="main">
+
+  <!-- Top bar -->
+  <header class="topbar">
+    <h1 class="topbar-title" id="viewTitle">Dashboard</h1>
+    <button class="btn btn--primary" id="newServerBtn">+ New Server</button>
+  </header>
+
+  <!-- ── DASHBOARD VIEW ─────────────────────────────────── -->
+  <div class="view" id="view-dashboard">
+    <div class="stat-cards" id="statCards">
+      <div class="stat-card">
+        <div class="stat-label">Total Servers</div>
+        <div class="stat-value" id="statTotal">—</div>
+      </div>
+      <div class="stat-card stat-card--green">
+        <div class="stat-label">Running</div>
+        <div class="stat-value" id="statRunning">—</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Backups Stored</div>
+        <div class="stat-value" id="statBackups">—</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Docker Version</div>
+        <div class="stat-value" id="statDocker">—</div>
+      </div>
+    </div>
+
+    <div class="section-header">
+      <h2>Server Overview</h2>
+    </div>
+    <div class="server-grid" id="dashServerGrid">
+      <div class="empty-state">Loading servers…</div>
+    </div>
+  </div>
+
+  <!-- ── SERVERS VIEW ──────────────────────────────────── -->
+  <div class="view hidden" id="view-servers">
+    <div class="server-list" id="serverList">
+      <div class="empty-state">Loading…</div>
+    </div>
+  </div>
+
+  <!-- ── BACKUPS VIEW ──────────────────────────────────── -->
+  <div class="view hidden" id="view-backups">
+    <div class="backups-header">
+      <p class="muted">World backups are stored as compressed archives. Select a server to manage its backups.</p>
+      <select class="select" id="backupServerSelect">
+        <option value="">— Select a server —</option>
+      </select>
+    </div>
+    <div id="backupList" class="backup-list"></div>
+  </div>
+
+  <!-- ── SERVER DETAIL PANEL ───────────────────────────── -->
+  <div class="detail-panel hidden" id="detailPanel">
+    <div class="detail-header">
+      <button class="btn btn--ghost" id="closeDetail">← Back</button>
+      <h2 id="detailName">Server Name</h2>
+      <div class="detail-actions">
+        <button class="btn btn--green" id="detailStart">▶ Start</button>
+        <button class="btn btn--yellow" id="detailRestart">↺ Restart</button>
+        <button class="btn btn--red" id="detailStop">■ Stop</button>
+      </div>
+    </div>
+
+    <div class="detail-body">
+      <!-- Stats row -->
+      <div class="detail-stats" id="detailStats">
+        <div class="detail-stat">
+          <div class="stat-label">CPU</div>
+          <div class="stat-value" id="dCPU">—</div>
+        </div>
+        <div class="detail-stat">
+          <div class="stat-label">Memory</div>
+          <div class="stat-value" id="dMem">—</div>
+        </div>
+        <div class="detail-stat">
+          <div class="stat-label">World Size</div>
+          <div class="stat-value" id="dWorldSize">—</div>
+        </div>
+        <div class="detail-stat">
+          <div class="stat-label">Players</div>
+          <div class="stat-value" id="dPlayers">—</div>
+        </div>
+      </div>
+
+      <!-- Tabs -->
+      <div class="tabs">
+        <button class="tab active" data-tab="console">Console</button>
+        <button class="tab" data-tab="ops">Players &amp; OPs</button>
+        <button class="tab hidden" data-tab="mods" id="modsTabBtn">Mods</button>
+        <button class="tab" data-tab="backups">Backups</button>
+        <button class="tab" data-tab="settings">Info</button>
+      </div>
+
+      <!-- Console tab -->
+      <div class="tab-panel" id="tab-console">
+        <div class="console-output" id="consoleOutput">
+          <div class="console-line muted">Loading logs…</div>
+        </div>
+        <div class="console-input-row">
+          <span class="console-prompt">/</span>
+          <input type="text" class="console-input" id="cmdInput" placeholder="give @a diamond 64 …">
+          <button class="btn btn--primary" id="sendCmd">Send</button>
+        </div>
+
+        <!-- Quick commands -->
+        <div class="quick-cmds">
+          <span class="quick-label">Quick:</span>
+          <button class="qbtn" data-cmd="list">list players</button>
+          <button class="qbtn" data-cmd="time set day">set day</button>
+          <button class="qbtn" data-cmd="weather clear">clear weather</button>
+          <button class="qbtn" data-cmd="save-all">save world</button>
+          <button class="qbtn" data-cmd="gamerule doDaylightCycle false">freeze time</button>
+          <button class="qbtn" data-cmd="difficulty peaceful">peaceful</button>
+        </div>
+      </div>
+
+      <!-- OPs tab -->
+      <div class="tab-panel hidden" id="tab-ops">
+        <div class="ops-grid">
+          <div class="ops-box">
+            <h3>OP a Player</h3>
+            <div class="input-row">
+              <input type="text" class="input" id="opPlayer" placeholder="PlayerName">
+              <button class="btn btn--green" id="opBtn">OP</button>
+              <button class="btn btn--red" id="deopBtn">De-OP</button>
+            </div>
+          </div>
+          <div class="ops-box">
+            <h3>Kick / Ban</h3>
+            <div class="input-row">
+              <input type="text" class="input" id="kickPlayer" placeholder="PlayerName">
+              <button class="btn btn--yellow" id="kickBtn">Kick</button>
+              <button class="btn btn--red" id="banBtn">Ban</button>
+              <button class="btn btn--ghost" id="pardonBtn">Pardon</button>
+            </div>
+          </div>
+          <div class="ops-box">
+            <h3>Give Items</h3>
+            <div class="input-row">
+              <input type="text" class="input" id="givePlayer" placeholder="Player">
+              <input type="text" class="input" id="giveItem" placeholder="minecraft:diamond">
+              <input type="number" class="input input--sm" id="giveAmount" placeholder="64" value="64">
+              <button class="btn btn--primary" id="giveBtn">Give</button>
+            </div>
+          </div>
+          <div class="ops-box">
+            <h3>Game Mode</h3>
+            <div class="input-row">
+              <input type="text" class="input" id="gmPlayer" placeholder="Player (blank = all)">
+              <button class="qbtn" data-gm="survival">Survival</button>
+              <button class="qbtn" data-gm="creative">Creative</button>
+              <button class="qbtn" data-gm="adventure">Adventure</button>
+              <button class="qbtn" data-gm="spectator">Spectator</button>
+            </div>
+          </div>
+          <div class="ops-box">
+            <h3>Whitelist</h3>
+            <div class="input-row">
+              <input type="text" class="input" id="whitelistPlayer" placeholder="PlayerName">
+              <button class="btn btn--green" id="whitelistAddBtn">Add</button>
+              <button class="btn btn--red" id="whitelistRemoveBtn">Remove</button>
+            </div>
+          </div>
+        </div>
+        <div class="cmd-response" id="opsResponse"></div>
+
+        <div class="ops-player-list">
+          <div class="ops-player-list-header">
+            <h3>Connected Players</h3>
+            <button class="btn btn--ghost btn--sm" id="refreshPlayersBtn">↺ Refresh</button>
+          </div>
+          <div id="connectedPlayersList" class="connected-players"></div>
+        </div>
+
+        <div class="ops-player-list">
+          <div class="ops-player-list-header">
+            <h3>Whitelisted Players</h3>
+            <button class="btn btn--ghost btn--sm" id="refreshWhitelistBtn">↺ Refresh</button>
+          </div>
+          <div id="whitelistedPlayersList" class="connected-players"></div>
+        </div>
+      </div>
+
+      <!-- Mods tab -->
+      <div class="tab-panel hidden" id="tab-mods">
+        <p class="muted" id="modsHint">Mods are loaded from <code>/mods</code> in the instance's data volume. Restart the server after adding or removing mods.</p>
+        <div class="backup-controls">
+          <input type="file" class="input" id="modFile" accept=".jar">
+          <button class="btn btn--primary" id="uploadModBtn">Upload</button>
+        </div>
+        <div class="backup-controls">
+          <input type="text" class="input" id="modUrl" placeholder="https://.../mod-or-plugin.jar">
+          <button class="btn btn--primary" id="addModUrlBtn">Add from URL</button>
+        </div>
+        <div id="modList" class="backup-list mt-1"></div>
+      </div>
+
+      <!-- Backups tab -->
+      <div class="tab-panel hidden" id="tab-backups">
+        <div class="schedule-section">
+          <div class="schedule-header">
+            <h3>Scheduled Backups</h3>
+          </div>
+          <div class="schedule-row">
+            <label class="toggle-wrap">
+              <input type="checkbox" id="scheduleEnabled" class="toggle-checkbox">
+              <span class="toggle-track"><span class="toggle-thumb"></span></span>
+              <span class="toggle-label-text">Auto-backup enabled</span>
+            </label>
+            <div class="schedule-interval-row">
+              <span class="muted">every</span>
+              <select class="select select--sm" id="scheduleInterval">
+                <option value="1">1 hour</option>
+                <option value="2">2 hours</option>
+                <option value="4">4 hours</option>
+                <option value="6">6 hours</option>
+                <option value="12">12 hours</option>
+                <option value="24" selected>24 hours</option>
+                <option value="48">48 hours</option>
+              </select>
+              <button class="btn btn--primary btn--sm" id="saveScheduleBtn">Save</button>
+            </div>
+          </div>
+          <div class="schedule-status" id="scheduleStatus"></div>
+        </div>
+
+        <div class="backup-controls">
+          <input type="text" class="input" id="backupLabel" placeholder="Backup label (optional)">
+          <button class="btn btn--primary" id="createBackupBtn">Create Backup Now</button>
+        </div>
+        <div id="serverBackupList" class="backup-list mt-1"></div>
+      </div>
+
+      <!-- Info tab -->
+      <div class="tab-panel hidden" id="tab-settings">
+        <div class="server-icon-section">
+          <div class="server-icon-preview">
+            <img id="serverIconImg" class="server-icon-img hidden" alt="Server icon">
+            <div id="serverIconPlaceholder" class="server-icon-placeholder">No Icon</div>
+          </div>
+          <div class="server-icon-controls">
+            <input type="file" class="input" id="serverIconFile" accept="image/png,image/jpeg,image/gif,image/webp">
+            <div class="server-icon-buttons">
+              <button class="btn btn--primary btn--sm" id="uploadIconBtn">Upload Icon</button>
+              <button class="btn btn--red btn--sm" id="removeIconBtn">Remove</button>
+            </div>
+          </div>
+        </div>
+        <div class="info-grid" id="serverInfo"></div>
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<!-- ── CREATE SERVER MODAL ─────────────────────────────── -->
+<div class="modal-overlay hidden" id="createModal">
+  <div class="modal">
+    <div class="modal-header">
+      <h2>Launch New Server</h2>
+      <button class="modal-close" id="closeModal">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-grid">
+        <div class="form-group">
+          <label>Server Name</label>
+          <input type="text" class="input" id="f-name" placeholder="my-survival">
+        </div>
+        <div class="form-group">
+          <label>Server Port</label>
+          <input type="number" class="input" id="f-port" value="25565">
+        </div>
+        <div class="form-group">
+          <label>Server Type</label>
+          <select class="select" id="f-type">
+            <option value="PAPER">Paper (recommended)</option>
+            <option value="VANILLA">Vanilla</option>
+            <option value="FABRIC">Fabric</option>
+            <option value="FORGE">Forge</option>
+            <option value="SPIGOT">Spigot</option>
+            <option value="PURPUR">Purpur</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Minecraft Version</label>
+          <select class="select" id="f-version">
+            <option value="LATEST">Loading…</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Memory (MiB)</label>
+          <input type="number" class="input" id="f-memory" value="2048" min="256" step="256">
+        </div>
+        <div class="form-group">
+          <label>Difficulty</label>
+          <select class="select" id="f-difficulty">
+            <option value="peaceful">Peaceful</option>
+            <option value="easy">Easy</option>
+            <option value="normal" selected>Normal</option>
+            <option value="hard">Hard</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Max Players</label>
+          <input type="number" class="input" id="f-maxplayers" value="20">
+        </div>
+        <div class="form-group">
+          <label>MOTD</label>
+          <input type="text" class="input" id="f-motd" placeholder="A Minecraft Server">
+        </div>
+        <div class="form-group form-group--full">
+          <label>Whitelist <span class="form-hint">comma-separated player names, leave blank to disable</span></label>
+          <input type="text" class="input" id="f-whitelist" placeholder="Steve, Alex, Notch">
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn--ghost" id="cancelCreate">Cancel</button>
+      <button class="btn btn--primary" id="confirmCreate">Launch Server</button>
+    </div>
+  </div>
+</div>
+
+<!-- Change Password Modal -->
+<div class="modal-overlay hidden" id="changePasswordModal">
+  <div class="modal modal--sm">
+    <div class="modal-header">
+      <h2>Change Password</h2>
+      <button class="modal-close" id="closeChangePassword">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label>Current Password</label>
+        <input type="password" class="input" id="cp-current" autocomplete="current-password">
+      </div>
+      <div class="form-group">
+        <label>New Password</label>
+        <input type="password" class="input" id="cp-new" autocomplete="new-password">
+      </div>
+      <div class="form-group">
+        <label>Confirm New Password</label>
+        <input type="password" class="input" id="cp-confirm" autocomplete="new-password">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn--ghost" id="cancelChangePassword">Cancel</button>
+      <button class="btn btn--primary" id="confirmChangePassword">Update Password</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="toast hidden" id="toast"></div>
+
+<script src="/static/js/app.js"></script>
+</body>
+</html>
