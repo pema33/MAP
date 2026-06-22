@@ -3,6 +3,7 @@
 // ── State ────────────────────────────────────────────────────────
 let servers = [];
 let activeServer = null;
+let _propsLines = [];
 let statsInterval     = null;
 let logsInterval      = null;
 let playersInterval   = null;
@@ -250,6 +251,7 @@ function switchTab(name) {
 
   if (name === 'backups') loadServerBackups();
   if (name === 'mods') loadMods();
+  if (name === 'properties') loadProperties();
   if (name === 'ops') {
     document.getElementById('opsResponse').textContent = '';
     fetchPlayers();
@@ -810,6 +812,65 @@ function renderServerInfo() {
   });
 }
 
+// ── Properties tab ───────────────────────────────────────────────
+async function loadProperties() {
+  if (!activeServer) return;
+  const list = document.getElementById('propsList');
+  list.innerHTML = '<div class="empty-state"><span class="spinner"></span></div>';
+  document.getElementById('propsFilter').value = '';
+  document.getElementById('propertiesStatus').textContent = '';
+
+  const res = await api(`/servers/${activeServer.id}/properties`);
+  if (res.error) {
+    list.innerHTML = `<div class="empty-state">${esc(res.error)}</div>`;
+    return;
+  }
+  _propsLines = res.lines || [];
+  renderProps('');
+}
+
+function renderProps(filter) {
+  const list = document.getElementById('propsList');
+  const f = filter.toLowerCase();
+  const props = _propsLines.filter(l =>
+    l.type === 'property' && (!f || l.key.toLowerCase().includes(f) || l.value.toLowerCase().includes(f))
+  );
+
+  if (!props.length) {
+    list.innerHTML = '<div class="empty-state">No matching properties.</div>';
+    return;
+  }
+
+  list.innerHTML = props.map(p => `
+    <div class="prop-row">
+      <div class="prop-key" title="${esc(p.key)}">${esc(p.key)}</div>
+      <input type="text" class="input prop-val" value="${esc(p.value)}" data-key="${esc(p.key)}">
+    </div>`).join('');
+
+  list.querySelectorAll('.prop-val').forEach(input => {
+    input.addEventListener('input', () => {
+      const entry = _propsLines.find(l => l.type === 'property' && l.key === input.dataset.key);
+      if (entry) entry.value = input.value;
+      document.getElementById('propertiesStatus').textContent = 'Unsaved changes';
+    });
+  });
+}
+
+async function saveProperties() {
+  if (!activeServer) return;
+  const btn = document.getElementById('savePropertiesBtn');
+  btn.disabled = true;
+  btn.textContent = 'Saving…';
+
+  const res = await apiPost(`/servers/${activeServer.id}/properties`, { lines: _propsLines });
+  btn.disabled = false;
+  btn.textContent = 'Save Changes';
+
+  if (res.error) { toast(res.error, 'error'); return; }
+  toast('server.properties saved — restart the server to apply changes', 'success');
+  document.getElementById('propertiesStatus').textContent = 'Saved';
+}
+
 // ── MOTD preview renderer ─────────────────────────────────────────
 function renderMotdPreview(text) {
   const COLORS = {
@@ -1011,6 +1072,11 @@ document.addEventListener('DOMContentLoaded', () => {
       toast(res.error || 'Backup failed', 'error');
     }
   });
+
+  // Properties tab
+  document.getElementById('savePropertiesBtn').addEventListener('click', saveProperties);
+  document.getElementById('reloadPropsBtn').addEventListener('click', loadProperties);
+  document.getElementById('propsFilter').addEventListener('input', e => renderProps(e.target.value));
 
   // Backups view server select
   document.getElementById('backupServerSelect').addEventListener('change', e => {

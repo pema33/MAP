@@ -949,6 +949,78 @@ def delete_mod(server_id, filename):
     log.info('Mod removed from %s (%s): %s', server_id, addons_dir, filename)
     return jsonify({'success': True})
 
+def _read_server_properties(volume_name):
+    result = subprocess.run([
+        'docker', 'run', '--rm',
+        '-v', f'{volume_name}:/data',
+        'alpine',
+        'sh', '-c', 'cat /data/server.properties 2>/dev/null'
+    ], capture_output=True, text=True, timeout=30)
+    return result.stdout if result.returncode == 0 else None
+
+def _write_server_properties(volume_name, content):
+    result = subprocess.run([
+        'docker', 'run', '--rm', '-i',
+        '-v', f'{volume_name}:/data',
+        'alpine',
+        'sh', '-c', 'cat > /data/server.properties'
+    ], input=content, capture_output=True, text=True, timeout=30)
+    return result.returncode == 0, result.stderr.strip()
+
+@app.route('/api/servers/<server_id>/properties', methods=['GET'])
+def get_properties(server_id):
+    volume_name = _get_volume_name(server_id)
+    raw = _read_server_properties(volume_name)
+    if raw is None:
+        return jsonify({'error': 'server.properties not found (server may not have started yet)'}), 404
+
+    lines = []
+    for line in raw.splitlines():
+        stripped = line.strip()
+        if not stripped:
+            lines.append({'type': 'blank'})
+        elif stripped.startswith('#'):
+            lines.append({'type': 'comment', 'value': line})
+        elif '=' in stripped:
+            k, _, v = stripped.partition('=')
+            lines.append({'type': 'property', 'key': k.strip(), 'value': v})
+        else:
+            lines.append({'type': 'comment', 'value': line})
+
+    return jsonify({'lines': lines})
+
+@app.route('/api/servers/<server_id>/properties', methods=['POST'])
+def save_properties(server_id):
+    data = request.json or {}
+    lines = data.get('lines', [])
+    if not isinstance(lines, list):
+        return jsonify({'error': 'lines must be a list'}), 400
+
+    parts = []
+    for item in lines:
+        t = item.get('type', '')
+        if t == 'blank':
+            parts.append('')
+        elif t == 'comment':
+            parts.append(item.get('value', ''))
+        elif t == 'property':
+            key = str(item.get('key', ''))
+            value = str(item.get('value', ''))
+            if '\n' in key or '\n' in value or '=' in key:
+                return jsonify({'error': f'Invalid key or value for: {key!r}'}), 400
+            parts.append(f'{key}={value}')
+        else:
+            return jsonify({'error': f'Unknown line type: {t!r}'}), 400
+
+    content = '\n'.join(parts) + '\n'
+    volume_name = _get_volume_name(server_id)
+    ok, err = _write_server_properties(volume_name, content)
+    if not ok:
+        return jsonify({'error': err or 'Failed to write server.properties'}), 500
+
+    log.info('server.properties updated for %s', server_id)
+    return jsonify({'success': True})
+
 def _panel_data_volume():
     """Return the named Docker volume backing /data in this container, or None.
 
